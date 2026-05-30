@@ -1,0 +1,83 @@
+name: 'Reusable Terraform Component'
+
+on:
+  workflow_call:
+    inputs:
+      component:
+        required: true
+        type: string
+      operation:
+        required: true
+        type: string # 'plan' or 'apply'
+    secrets:
+      ARM_CLIENT_ID:
+        required: true
+      ARM_CLIENT_SECRET:
+        required: true
+      ARM_SUBSCRIPTION_ID:
+        required: true
+      ARM_TENANT_ID:
+        required: true
+
+jobs:
+  terraform:
+    name: 'Terraform: ${{ inputs.component }}'
+    runs-on: ubuntu-latest
+    environment: dev
+    defaults:
+      run:
+        working-directory: ./environments/dev/${{ inputs.component }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.3.0
+
+      - name: Terraform Init
+        run: terraform init
+        env:
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+
+      - name: Terraform Format
+        run: terraform fmt -recursive ../../../
+
+      - name: Auto-Heal Code (Format)
+        if: github.event_name == 'push' || github.event_name == 'pull_request'
+        uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          commit_message: "auto-heal: fix terraform formatting for ${{ inputs.component }}"
+          file_pattern: "*.tf"
+
+      - name: tfsec
+        uses: aquasecurity/tfsec-action@v1.0.0
+        continue-on-error: true
+        with:
+          working_directory: ./environments/dev/${{ inputs.component }}
+
+      - name: Checkov
+        uses: bridgecrewio/checkov-action@master
+        continue-on-error: true
+        with:
+          directory: ./environments/dev/${{ inputs.component }}
+          framework: terraform
+          soft_fail: true
+
+      - name: Terraform Action (${{ inputs.operation }})
+        run: |
+          if [ "${{ inputs.operation }}" == "plan" ]; then
+            terraform plan -var-file="dev.tfvars" -input=false
+          else
+            terraform apply -var-file="dev.tfvars" -auto-approve -input=false
+          fi
+        env:
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}

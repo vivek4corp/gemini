@@ -6,7 +6,7 @@ variable "clusters" {
     dns_prefix          = string
     kubernetes_version  = optional(string)
     sku_tier            = optional(string, "Free")
-    
+
     default_node_pool = object({
       name                = string
       node_count          = optional(number, 1)
@@ -36,7 +36,7 @@ variable "clusters" {
     role_based_access_control_enabled = optional(bool, true)
     azure_policy_enabled              = optional(bool, false)
     http_application_routing_enabled  = optional(bool, false)
-    
+
     tags = optional(map(string), {})
   }))
 }

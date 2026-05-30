@@ -9,10 +9,11 @@ variable "resource_groups" {
 variable "registries" {
   description = "Map of ACRs to create."
   type = map(object({
-    resource_group_key = string
-    sku                = optional(string, "Standard")
-    admin_enabled      = optional(bool, false)
-    tags               = optional(map(string), {})
+    resource_group_key            = string
+    sku                           = optional(string, "Premium")
+    admin_enabled                 = optional(bool, false)
+    public_network_access_enabled = optional(bool, false)
+    tags                          = optional(map(string), {})
   }))
 }
 
@@ -24,11 +25,11 @@ variable "clusters" {
     kubernetes_version = optional(string)
     default_node_pool = object({
       name                = string
-      node_count          = optional(number, 1)
+      node_count          = optional(number, 3)
       vm_size             = optional(string, "Standard_DS2_v2")
-      enable_auto_scaling = optional(bool, false)
-      min_count           = optional(number)
-      max_count           = optional(number)
+      enable_auto_scaling = optional(bool, true)
+      min_count           = optional(number, 3)
+      max_count           = optional(number, 10)
     })
     tags = optional(map(string), {})
   }))

@@ -25,7 +25,7 @@ variable "clusters" {
     }), { type = "SystemAssigned" })
 
     network_profile = optional(object({
-      network_plugin     = optional(string, "kubenet")
+      network_plugin     = optional(string, "azure")
       network_policy     = optional(string)
       dns_service_ip     = optional(string)
       docker_bridge_cidr = optional(string)

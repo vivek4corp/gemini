@@ -11,64 +11,142 @@ permissions:
   pull-requests: write
 
 jobs:
-  terraform:
-    name: 'Terraform'
+  resource_groups:
+    name: 'RG: Security and Plan'
     runs-on: ubuntu-latest
     environment: dev
-
-    strategy:
-      matrix:
-        component: [rg, acr, aks]
-      fail-fast: false # Allow other components to proceed if one fails
-
     defaults:
       run:
-        working-directory: ./environments/dev/${{ matrix.component }}
-
+        working-directory: ./environments/dev/rg
     steps:
-    - name: Checkout
-      uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.3.0
+      - name: Terraform Init
+        run: terraform init
+        env:
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+      - name: Terraform Format
+        run: terraform fmt -recursive ../../../
+      - name: Auto-Heal Code
+        uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          commit_message: "auto-heal: fix terraform formatting for rg"
+          file_pattern: "*.tf"
+      - name: tfsec
+        uses: aquasecurity/tfsec-action@v1.0.0
+        continue-on-error: true
+      - name: Checkov
+        uses: bridgecrewio/checkov-action@master
+        continue-on-error: true
+        with:
+          directory: ./environments/dev/rg
+          framework: terraform
+          soft_fail: true
+      - name: Terraform Plan
+        run: terraform plan -var-file="dev.tfvars" -input=false
+        env:
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
 
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v2
-      with:
-        terraform_version: 1.3.0
+  acr:
+    name: 'ACR: Security and Plan'
+    needs: resource_groups
+    runs-on: ubuntu-latest
+    environment: dev
+    defaults:
+      run:
+        working-directory: ./environments/dev/acr
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.3.0
+      - name: Terraform Init
+        run: terraform init
+        env:
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+      - name: Terraform Format
+        run: terraform fmt -recursive ../../../
+      - name: Auto-Heal Code
+        uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          commit_message: "auto-heal: fix terraform formatting for acr"
+          file_pattern: "*.tf"
+      - name: tfsec
+        uses: aquasecurity/tfsec-action@v1.0.0
+        continue-on-error: true
+      - name: Checkov
+        uses: bridgecrewio/checkov-action@master
+        continue-on-error: true
+        with:
+          directory: ./environments/dev/acr
+          framework: terraform
+          soft_fail: true
+      - name: Terraform Plan
+        run: terraform plan -var-file="dev.tfvars" -input=false
+        env:
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
 
-    - name: Terraform Init
-      run: terraform init
-      env:
-        ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
-        ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
-        ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
-        ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
-
-    - name: Terraform Format
-      run: terraform fmt -recursive ../../../
-
-    - name: Auto-Heal Code (Format)
-      uses: stefanzweifel/git-auto-commit-action@v4
-      with:
-        commit_message: "auto-heal: fix terraform formatting for ${{ matrix.component }}"
-        file_pattern: "*.tf"
-
-    - name: tfsec
-      uses: aquasecurity/tfsec-action@v1.0.0
-      continue-on-error: true
-      with:
-        working_directory: ./environments/dev/${{ matrix.component }}
-
-    - name: Checkov
-      uses: bridgecrewio/checkov-action@master
-      continue-on-error: true
-      with:
-        directory: ./environments/dev/${{ matrix.component }}
-        framework: terraform
-        soft_fail: true
-
-    - name: Terraform Plan
-      run: terraform plan -var-file="dev.tfvars" -input=false
-      env:
-        ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
-        ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
-        ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
-        ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+  aks:
+    name: 'AKS: Security and Plan'
+    needs: acr
+    runs-on: ubuntu-latest
+    environment: dev
+    defaults:
+      run:
+        working-directory: ./environments/dev/aks
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.3.0
+      - name: Terraform Init
+        run: terraform init
+        env:
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+      - name: Terraform Format
+        run: terraform fmt -recursive ../../../
+      - name: Auto-Heal Code
+        uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          commit_message: "auto-heal: fix terraform formatting for aks"
+          file_pattern: "*.tf"
+      - name: tfsec
+        uses: aquasecurity/tfsec-action@v1.0.0
+        continue-on-error: true
+      - name: Checkov
+        uses: bridgecrewio/checkov-action@master
+        continue-on-error: true
+        with:
+          directory: ./environments/dev/aks
+          framework: terraform
+          soft_fail: true
+      - name: Terraform Plan
+        run: terraform plan -var-file="dev.tfvars" -input=false
+        env:
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}

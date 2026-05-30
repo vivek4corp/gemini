@@ -1,22 +1,3 @@
-variable "resource_groups" {
-  description = "Map of resource groups to create."
-  type = map(object({
-    location = string
-    tags     = optional(map(string), {})
-  }))
-}
-
-variable "registries" {
-  description = "Map of ACRs to create."
-  type = map(object({
-    resource_group_key            = string
-    sku                           = optional(string, "Premium")
-    admin_enabled                 = optional(bool, false)
-    public_network_access_enabled = optional(bool, false)
-    tags                          = optional(map(string), {})
-  }))
-}
-
 variable "clusters" {
   description = "Map of AKS clusters to create."
   type = map(object({

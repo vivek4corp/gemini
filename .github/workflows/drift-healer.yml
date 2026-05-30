@@ -2,9 +2,8 @@ name: 'Infrastructure Drift Healer'
 
 on:
   schedule:
-    # Runs every 6 hours
     - cron: '0 */6 * * *'
-  workflow_dispatch: # Allows manual trigger
+  workflow_dispatch:
 
 jobs:
   drift-heal:
@@ -12,9 +11,14 @@ jobs:
     runs-on: ubuntu-latest
     environment: dev
 
+    strategy:
+      matrix:
+        component: [rg, acr, aks]
+      max-parallel: 1 # Ensure RG is applied before dependent components
+
     defaults:
       run:
-        working-directory: ./environments/dev
+        working-directory: ./environments/dev/${{ matrix.component }}
 
     steps:
     - name: Checkout
@@ -27,6 +31,11 @@ jobs:
 
     - name: Terraform Init
       run: terraform init
+      env:
+        ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+        ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+        ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+        ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
 
     - name: Terraform Apply (Auto-Heal)
       run: terraform apply -var-file="dev.tfvars" -auto-approve -input=false

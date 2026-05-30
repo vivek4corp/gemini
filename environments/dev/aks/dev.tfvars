@@ -1,24 +1,3 @@
-resource_groups = {
-  "rg-myapp-dev-eastus" = {
-    location = "eastus"
-    tags = {
-      environment = "dev"
-      project     = "myapp"
-    }
-  }
-}
-
-registries = {
-  "acrmyappdeveastus" = {
-    resource_group_key            = "rg-myapp-dev-eastus"
-    sku                           = "Premium"
-    public_network_access_enabled = false
-    tags = {
-      environment = "dev"
-    }
-  }
-}
-
 clusters = {
   "aks-myapp-dev-eastus" = {
     resource_group_key = "rg-myapp-dev-eastus"

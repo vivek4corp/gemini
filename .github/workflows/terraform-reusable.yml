@@ -18,6 +18,24 @@ on:
         required: true
       ARM_TENANT_ID:
         required: true
+  workflow_dispatch:
+    inputs:
+      component:
+        description: 'Component to deploy (acr, aks, rg)'
+        required: true
+        type: choice
+        options:
+          - acr
+          - aks
+          - rg
+      operation:
+        description: 'Operation (plan or apply)'
+        required: true
+        default: 'plan'
+        type: choice
+        options:
+          - plan
+          - apply
 
 jobs:
   terraform:

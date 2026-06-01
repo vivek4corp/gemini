@@ -1,0 +1,37 @@
+name: 'Deploy All Components'
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: 'Operation (plan or apply)'
+        required: true
+        default: 'plan'
+        type: choice
+        options:
+          - plan
+          - apply
+
+jobs:
+  resource_group:
+    uses: ./.github/workflows/terraform-reusable.yml
+    with:
+      component: 'rg'
+      operation: ${{ github.event.inputs.operation }}
+    secrets: inherit
+
+  acr:
+    needs: resource_group
+    uses: ./.github/workflows/terraform-reusable.yml
+    with:
+      component: 'acr'
+      operation: ${{ github.event.inputs.operation }}
+    secrets: inherit
+
+  aks:
+    needs: acr
+    uses: ./.github/workflows/terraform-reusable.yml
+    with:
+      component: 'aks'
+      operation: ${{ github.event.inputs.operation }}
+    secrets: inherit

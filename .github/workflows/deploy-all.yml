@@ -25,12 +25,18 @@ jobs:
       - name: Discover Components
         id: set-matrix
         run: |
-          # Find directories in environments/dev and convert to JSON array
-          # We sort them to ensure a predictable order (acr, aks, rg)
-          # Note: If dependencies are strict (e.g., rg must be first), 
-          # we might need a naming convention like 01-rg, 02-acr, etc.
-          COMPONENTS=$(ls -d environments/dev/*/ | xargs -n 1 basename | jq -R -s -c 'split("\n")[:-1]')
-          echo "matrix=$COMPONENTS" >> $GITHUB_OUTPUT
+          # Find directories, filter out 'rg', sort others, then put 'rg' at the start
+          ALL_DIRS=$(ls -d environments/dev/*/ | xargs -n 1 basename)
+          OTHER_DIRS=$(echo "$ALL_DIRS" | grep -v "^rg$" | sort)
+          if echo "$ALL_DIRS" | grep -q "^rg$"; then
+            FINAL_LIST=$(echo -e "rg\n$OTHER_DIRS")
+          else
+            FINAL_LIST="$OTHER_DIRS"
+          fi
+          
+          # Convert newline-separated list to JSON array
+          JSON_COMPONENTS=$(echo "$FINAL_LIST" | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          echo "matrix=$JSON_COMPONENTS" >> $GITHUB_OUTPUT
 
   deploy:
     needs: setup

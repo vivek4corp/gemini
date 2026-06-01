@@ -14,4 +14,5 @@ variable "clusters" {
     })
     tags = optional(map(string), {})
   }))
+  default = {}
 }

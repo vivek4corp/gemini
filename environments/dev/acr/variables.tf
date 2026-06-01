@@ -7,4 +7,5 @@ variable "registries" {
     public_network_access_enabled = optional(bool, false)
     tags                          = optional(map(string), {})
   }))
+  default = {}
 }

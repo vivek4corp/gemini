@@ -1,10 +1,19 @@
-name: 'Deploy All Components'
+name: 'Infrastructure Orchestrator'
 
 on:
   workflow_dispatch:
     inputs:
+      environment:
+        description: 'Target Environment'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          # - staging
+          # - prod
       operation:
-        description: 'Operation (plan or apply)'
+        description: 'Terraform Operation'
         required: true
         default: 'plan'
         type: choice
@@ -12,42 +21,68 @@ on:
           - plan
           - apply
 
+permissions:
+  contents: read
+  id-token: write # Required for OIDC if using Azure Workload Identity
+
 jobs:
-  # This job dynamically finds all component directories in environments/dev
-  setup:
+  inventory:
+    name: 'Inventory: Discover Stacks'
     runs-on: ubuntu-latest
     outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      stacks: ${{ steps.discover.outputs.stacks }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-      - name: Discover Components
-        id: set-matrix
+      - name: Discover Stacks
+        id: discover
         run: |
-          # Find directories, filter out 'rg', sort others, then put 'rg' at the start
-          ALL_DIRS=$(ls -d environments/dev/*/ | xargs -n 1 basename)
-          OTHER_DIRS=$(echo "$ALL_DIRS" | grep -v "^rg$" | sort)
-          if echo "$ALL_DIRS" | grep -q "^rg$"; then
-            FINAL_LIST=$(echo -e "rg\n$OTHER_DIRS")
-          else
-            FINAL_LIST="$OTHER_DIRS"
-          fi
+          # Use a more robust discovery method. 
+          # We look for main.tf files to identify valid Terraform stacks.
+          SEARCH_PATH="environments/${{ github.event.inputs.environment }}"
           
-          # Convert newline-separated list to JSON array
-          JSON_COMPONENTS=$(echo "$FINAL_LIST" | jq -R -s -c 'split("\n") | map(select(length > 0))')
-          echo "matrix=$JSON_COMPONENTS" >> $GITHUB_OUTPUT
+          if [ ! -d "$SEARCH_PATH" ]; then
+            echo "Error: Environment path $SEARCH_PATH not found."
+            exit 1
+          fi
+
+          # Find directories containing main.tf, relative to the environment path
+          STACKS=$(find "$SEARCH_PATH" -maxdepth 2 -name "main.tf" -exec dirname {} \; | xargs -I {} basename {} | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          
+          # Sort stacks with priority (RG first)
+          SORTED_STACKS=$(echo "$STACKS" | jq -c '
+            if contains(["rg"]) then 
+              ["rg"] + (del(.[] | select(. == "rg")) | sort)
+            else 
+              sort 
+            end')
+          
+          echo "stacks=$SORTED_STACKS" >> $GITHUB_OUTPUT
 
   deploy:
-    needs: setup
+    name: 'Deploy: ${{ matrix.stack }}'
+    needs: inventory
     strategy:
       matrix:
-        component: ${{ fromJson(needs.setup.outputs.matrix) }}
-      # Use max-parallel: 1 if you want to ensure they run one by one
-      # to avoid Terraform state lock issues or dependency failures.
-      max-parallel: 1 
+        stack: ${{ fromJson(needs.inventory.outputs.stacks) }}
+      max-parallel: 1 # Sequential deployment for infrastructure safety
     uses: ./.github/workflows/terraform-reusable.yml
     with:
-      component: ${{ matrix.component }}
+      component: ${{ matrix.stack }}
       operation: ${{ github.event.inputs.operation }}
+      # environment: ${{ github.event.inputs.environment }} # Could be passed if reusable workflow supports it
     secrets: inherit
+
+  notify:
+    name: 'Notification'
+    needs: deploy
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Summary
+        run: |
+          echo "### Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "Environment: ${{ github.event.inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "Operation: ${{ github.event.inputs.operation }}" >> $GITHUB_STEP_SUMMARY
+          echo "Status: ${{ needs.deploy.result }}" >> $GITHUB_STEP_SUMMARY

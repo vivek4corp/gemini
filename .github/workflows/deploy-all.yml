@@ -13,25 +13,35 @@ on:
           - apply
 
 jobs:
-  resource_group:
-    uses: ./.github/workflows/terraform-reusable.yml
-    with:
-      component: 'rg'
-      operation: ${{ github.event.inputs.operation }}
-    secrets: inherit
+  # This job dynamically finds all component directories in environments/dev
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
 
-  acr:
-    needs: resource_group
-    uses: ./.github/workflows/terraform-reusable.yml
-    with:
-      component: 'acr'
-      operation: ${{ github.event.inputs.operation }}
-    secrets: inherit
+      - name: Discover Components
+        id: set-matrix
+        run: |
+          # Find directories in environments/dev and convert to JSON array
+          # We sort them to ensure a predictable order (acr, aks, rg)
+          # Note: If dependencies are strict (e.g., rg must be first), 
+          # we might need a naming convention like 01-rg, 02-acr, etc.
+          COMPONENTS=$(ls -d environments/dev/*/ | xargs -n 1 basename | jq -R -s -c 'split("\n")[:-1]')
+          echo "matrix=$COMPONENTS" >> $GITHUB_OUTPUT
 
-  aks:
-    needs: acr
+  deploy:
+    needs: setup
+    strategy:
+      matrix:
+        component: ${{ fromJson(needs.setup.outputs.matrix) }}
+      # Use max-parallel: 1 if you want to ensure they run one by one
+      # to avoid Terraform state lock issues or dependency failures.
+      max-parallel: 1 
     uses: ./.github/workflows/terraform-reusable.yml
     with:
-      component: 'aks'
+      component: ${{ matrix.component }}
       operation: ${{ github.event.inputs.operation }}
     secrets: inherit
